@@ -654,6 +654,7 @@ matrix<unsigned short>& ImagePipeline::processImage(ParameterManager * paramMana
         }
 
         //Lensfun processing
+        cout << "lensfun start" << endl;
         lfDatabase * ldb = new lfDatabase;
         QDir dir = QDir::home();
         QString dirstr = QStandardPaths::writableLocation(QStandardPaths::GenericDataLocation);
@@ -669,37 +670,45 @@ matrix<unsigned short>& ImagePipeline::processImage(ParameterManager * paramMana
             const float cropFactor = cameraList[0]->CropFactor;
 
             QString tempLensName = demosaicParam.lensName;
-            if (tempLensName.front() == "\\")
+            if (tempLensName.length() > 0)
             {
-                //if the lens name starts with a backslash, don't filter by camera
-                tempLensName.remove(0,1);
-            } else {
-                //if it doesn't start with a backslash, filter by camera
-                camera = cameraList[0];
+                if (tempLensName.front() == "\\")
+                {
+                    //if the lens name starts with a backslash, don't filter by camera
+                    tempLensName.remove(0,1);
+                } else {
+                    //if it doesn't start with a backslash, filter by camera
+                    camera = cameraList[0];
+                }
             }
             std::string lensName = tempLensName.toStdString();
             const lfLens * lens = NULL;
             const lfLens ** lensList = NULL;
-            lensList = ldb->FindLenses(NULL, NULL, lensName.c_str());
+            lensList = ldb->FindLenses(camera, NULL, lensName.c_str());
             if (lensList)
             {
                 lens = lensList[0];
 
                 //Now we set up the modifier itself with the lens and processing flags
-                lfModifier * mod = new lfModifier(lens, demosaicParam.focalLength, cropFactor, width, height, LF_PF_F32);
+                //lfModifier * mod = new lfModifier(lens, demosaicParam.focalLength, cropFactor, width, height, LF_PF_F32);
+                //The above version is for master. v0.3.95 is different.
+                lfModifier * mod = new lfModifier(cropFactor, width, height, LF_PF_F32);
 
                 int modflags = 0;
                 if (demosaicParam.lensfunCA && !isMonochrome)
                 {
-                    modflags |= mod->EnableTCACorrection();
+                    //modflags |= mod->EnableTCACorrection();
+                    modflags |= mod->EnableTCACorrection(lens, demosaicParam.focalLength);
                 }
                 if (demosaicParam.lensfunVignetting)
                 {
-                    modflags |= mod->EnableVignettingCorrection(demosaicParam.fnumber, 1000.0f);
+                    //modflags |= mod->EnableVignettingCorrection(demosaicParam.fnumber, 1000.0f);
+                    modflags |= mod->EnableVignettingCorrection(lens, demosaicParam.focalLength, demosaicParam.fnumber, 1000.0f);
                 }
                 if (demosaicParam.lensfunDistortion)
                 {
-                    modflags |= mod->EnableDistortionCorrection();
+                    //modflags |= mod->EnableDistortionCorrection();
+                    modflags |= mod->EnableDistortionCorrection(lens, demosaicParam.focalLength);
                     modflags |= mod->EnableScaling(mod->GetAutoScale(false));
                     cout << "Auto scale factor: " << mod->GetAutoScale(false) << endl;
                 }
